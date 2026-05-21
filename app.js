@@ -18,6 +18,21 @@ const CONFIG = {
 };
 
 // ======================================================================
+// AUDIO PERINGATAN
+// ======================================================================
+
+const warningSound = new Audio(
+    "https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"
+);
+
+warningSound.volume = 1.0;
+
+// Cooldown agar suara tidak spam
+let lastWarningTime = 0;
+const warningCooldown = 3000;
+
+
+// ======================================================================
 // 2. MESIN INTI AI (JANGAN MENGUBAH KODE DI BAWAH INI!)
 // ======================================================================
 
@@ -108,10 +123,18 @@ async function processFrame() {
             let h = output[i + 3 * elements];
             
             // Menyesuaikan ukuran kotak hasil deteksi[cite: 1]
-            if (w <= 1.5) { x *= TARGET_SIZE; y *= TARGET_SIZE; w *= TARGET_SIZE; h *= TARGET_SIZE; }
+            if (w <= 1.5) { 
+                x *= TARGET_SIZE; 
+                y *= TARGET_SIZE; 
+                w *= TARGET_SIZE; 
+                h *= TARGET_SIZE; 
+            }
 
             rawBoxes.push({
-                x: x - w / 2, y: y - h / 2, w: w, h: h,
+                x: x - w / 2,
+                y: y - h / 2,
+                w: w,
+                h: h,
                 score: maxScore,
                 classId: classId
             });
@@ -120,46 +143,133 @@ async function processFrame() {
 
     // E. Membersihkan kotak-kotak yang menumpuk pada objek yang sama[cite: 1]
     const finalBoxes = nonMaxSuppression(rawBoxes, CONFIG.iouThreshold);
+
     drawBoxes(finalBoxes);
+
     requestAnimationFrame(processFrame);
 }
 
 // ======================================================================
 // FUNGSI MATEMATIKA TAMBAHAN (Intersection over Union & NMS)
 // ======================================================================
+
 function calculateIoU(box1, box2) {
     const xA = Math.max(box1.x, box2.x);
     const yA = Math.max(box1.y, box2.y);
     const xB = Math.min(box1.x + box1.w, box2.x + box2.w);
     const yB = Math.min(box1.y + box1.h, box2.y + box2.h);
+
     const intersectionArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
-    return intersectionArea / ((box1.w * box1.h) + (box2.w * box2.h) - intersectionArea); //[cite: 1]
+
+    return intersectionArea / (
+        (box1.w * box1.h) +
+        (box2.w * box2.h) -
+        intersectionArea
+    );
 }
 
 function nonMaxSuppression(boxes, iouThreshold) {
+
     boxes.sort((a, b) => b.score - a.score);
+
     const result = [];
+
     while (boxes.length > 0) {
+
         const current = boxes.shift();
+
         result.push(current);
-        boxes = boxes.filter(box => calculateIoU(current, box) < iouThreshold); //[cite: 1]
+
+        boxes = boxes.filter(
+            box => calculateIoU(current, box) < iouThreshold
+        );
     }
-    return result; //[cite: 1]
+
+    return result;
 }
 
-// Fungsi untuk menggambar kotak hijau beserta teks label di atas video
+
+// ======================================================================
+// FUNGSI GAMBAR KOTAK DETEKSI
+// ======================================================================
+
 function drawBoxes(boxes) {
+
     ctxOverlay.clearRect(0, 0, overlay.width, overlay.height);
+
     boxes.forEach(box => {
+
         const scaleX = overlay.width / TARGET_SIZE;
         const scaleY = overlay.height / TARGET_SIZE;
-        
-        ctxOverlay.strokeStyle = "#34C759";
+
+        const label = CONFIG.labels[box.classId];
+
+        // =====================================================
+        // JIKA TIDAK PAKAI HELM
+        // =====================================================
+
+        if (label === "head") {
+
+            // Kotak merah
+            ctxOverlay.strokeStyle = "#FF3B30";
+            ctxOverlay.fillStyle = "#FF3B30";
+
+            // Update status
+            status.innerText = "⚠️ PERINGATAN: ADA PEKERJA TANPA HELM";
+
+            // Mainkan suara
+            const now = Date.now();
+
+            if (now - lastWarningTime > warningCooldown) {
+
+                // Alarm
+                warningSound.play();
+
+                // Voice AI
+                const speech = new SpeechSynthesisUtterance(
+                    "Peringatan! Pekerja tidak menggunakan helm keselamatan."
+                );
+
+                speech.lang = "id-ID";
+                speech.volume = 1;
+                speech.rate = 1;
+
+                window.speechSynthesis.speak(speech);
+
+                lastWarningTime = now;
+            }
+
+        }
+
+        // =====================================================
+        // JIKA PAKAI HELM
+        // =====================================================
+
+        else {
+
+            ctxOverlay.strokeStyle = "#34C759";
+            ctxOverlay.fillStyle = "#34C759";
+
+            status.innerText = "✅ SEMUA PEKERJA MEMAKAI HELM";
+        }
+
+        // Gambar kotak
         ctxOverlay.lineWidth = 3;
-        ctxOverlay.strokeRect(box.x * scaleX, box.y * scaleY, box.w * scaleX, box.h * scaleY);
-        
-        ctxOverlay.fillStyle = "#34C759";
+
+        ctxOverlay.strokeRect(
+            box.x * scaleX,
+            box.y * scaleY,
+            box.w * scaleX,
+            box.h * scaleY
+        );
+
+        // Text label
         ctxOverlay.font = "bold 16px Arial";
-        ctxOverlay.fillText(`${CONFIG.labels[box.classId]} ${(box.score * 100).toFixed(0)}%`, box.x * scaleX, box.y * scaleY - 5);
+
+        ctxOverlay.fillText(
+            `${label} ${(box.score * 100).toFixed(0)}%`,
+            box.x * scaleX,
+            box.y * scaleY - 5
+        );
     });
 }
