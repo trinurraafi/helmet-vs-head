@@ -1,43 +1,244 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deployment AI Siswa</title>
-    
-    <!-- Memuat mesin AI (ONNX Runtime Web) agar model bisa berjalan langsung di browser[cite: 2] -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Deteksi Helm Kerja</title>
+
+    <!-- ONNX Runtime -->
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-    
+
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
     <style>
-        body { background-color: #121212; color: white; font-family: 'Courier New', Courier, monospace; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .container { position: relative; width: 640px; height: 480px; border: 2px solid #555; border-radius: 10px; overflow: hidden; }
-        video, canvas#overlay { position: absolute; top: 0; left: 0; width: 640px; height: 480px; }
-        canvas#overlay { z-index: 10; pointer-events: none; }
-        #status { margin: 15px; padding: 10px; border-radius: 5px; background: #1e1e1e; border: 1px solid #444; width: 600px; text-align: center; }
-        .btn-start { padding: 12px 30px; font-size: 1.1rem; cursor: pointer; background: #FF3B30; color: white; border: none; border-radius: 5px; font-weight: bold; }
-        .btn-start:hover { background: #cc2f26; }
+        *{
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
+        }
+
+        body{
+            font-family:'Poppins', sans-serif;
+            background:
+                radial-gradient(circle at top left, #1f2937, #0f172a 40%),
+                linear-gradient(135deg, #0f172a, #111827);
+            color:white;
+            min-height:100vh;
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            padding:30px;
+        }
+
+        .main-card{
+            width:100%;
+            max-width:850px;
+            background:rgba(255,255,255,0.05);
+            border:1px solid rgba(255,255,255,0.1);
+            backdrop-filter:blur(12px);
+            border-radius:25px;
+            padding:30px;
+            box-shadow:
+                0 10px 40px rgba(0,0,0,0.5),
+                inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+
+        .header{
+            text-align:center;
+            margin-bottom:25px;
+        }
+
+        .badge{
+            display:inline-block;
+            padding:8px 18px;
+            border-radius:999px;
+            background:rgba(0,255,170,0.12);
+            border:1px solid rgba(0,255,170,0.3);
+            color:#00ffae;
+            font-size:0.9rem;
+            font-weight:600;
+            margin-bottom:15px;
+        }
+
+        h1{
+            font-size:2.2rem;
+            margin-bottom:10px;
+            font-weight:700;
+            background:linear-gradient(to right, #ffffff, #8ec5ff);
+            -webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;
+        }
+
+        .desc{
+            color:#cbd5e1;
+            font-size:1rem;
+            line-height:1.7;
+        }
+
+        .creator{
+            margin-top:15px;
+            color:#94a3b8;
+            font-size:0.95rem;
+        }
+
+        .creator span{
+            color:#ffffff;
+            font-weight:600;
+        }
+
+        .button-wrapper{
+            display:flex;
+            justify-content:center;
+            margin:25px 0;
+        }
+
+        .btn-start{
+            padding:14px 35px;
+            border:none;
+            border-radius:14px;
+            background:linear-gradient(135deg, #00c853, #00e676);
+            color:white;
+            font-size:1rem;
+            font-weight:700;
+            cursor:pointer;
+            transition:0.3s ease;
+            box-shadow:0 10px 25px rgba(0,255,120,0.25);
+        }
+
+        .btn-start:hover{
+            transform:translateY(-3px) scale(1.03);
+            box-shadow:0 15px 35px rgba(0,255,120,0.35);
+        }
+
+        #status{
+            width:100%;
+            padding:14px;
+            text-align:center;
+            border-radius:14px;
+            margin-bottom:20px;
+            background:rgba(255,255,255,0.05);
+            border:1px solid rgba(255,255,255,0.08);
+            color:#00ffae;
+            font-weight:600;
+            letter-spacing:1px;
+        }
+
+        .camera-container{
+            position:relative;
+            width:100%;
+            max-width:640px;
+            margin:auto;
+            border-radius:20px;
+            overflow:hidden;
+            border:2px solid rgba(255,255,255,0.1);
+            box-shadow:0 10px 35px rgba(0,0,0,0.45);
+        }
+
+        video,
+        canvas#overlay{
+            position:absolute;
+            top:0;
+            left:0;
+            width:100%;
+            height:100%;
+        }
+
+        video{
+            position:relative;
+            display:block;
+            background:black;
+        }
+
+        canvas#overlay{
+            z-index:10;
+            pointer-events:none;
+        }
+
+        .footer{
+            margin-top:25px;
+            text-align:center;
+            color:#94a3b8;
+            font-size:0.9rem;
+            line-height:1.7;
+        }
+
+        .footer strong{
+            color:#00ffae;
+        }
+
+        @media(max-width:768px){
+
+            h1{
+                font-size:1.7rem;
+            }
+
+            .main-card{
+                padding:20px;
+            }
+
+            .btn-start{
+                width:100%;
+            }
+        }
     </style>
 </head>
 <body>
 
-    <!-- GANTI BAGIAN INI dengan judul proyek kalian -->
-    <h1>🛡️ Proyek AI: Deteksi Otomatis</h1>
-    <p>Dibuat oleh: [Nama Kalian]</p>
-    
-    <button id="btn-init" class="btn-start">AKTIFKAN KAMERA</button>
-    <div id="status">STATUS: MATI</div>
+    <div class="main-card">
 
-    <div class="container">
-        <!-- Elemen video untuk menampilkan gambar langsung dari kamera laptop/HP[cite: 2] -->
-        <video id="webcam" playsinline muted></video>
-        <!-- Kanvas transparan untuk menggambar kotak deteksi di atas video kamera[cite: 2] -->
-        <canvas id="overlay" width="640" height="480"></canvas>
+        <div class="header">
+            <div class="badge">AI SAFETY SYSTEM</div>
+
+            <h1>🪖 AI Deteksi Helm Kerja</h1>
+
+            <p class="desc">
+                Sistem kecerdasan buatan untuk mendeteksi pekerja yang menggunakan
+                helm keselamatan dan yang tidak menggunakan helm secara real-time
+                menggunakan kamera.
+            </p>
+
+            <p class="creator">
+                Dibuat oleh:
+                <span>Tri Nur Raafi</span>,
+                <span>Ragga Hafidz Fianugra</span>,
+                dan
+                <span>Ziddan Mulki Akbar</span>
+            </p>
+        </div>
+
+        <div class="button-wrapper">
+            <button id="btn-init" class="btn-start">
+                🎥 AKTIFKAN KAMERA
+            </button>
+        </div>
+
+        <div id="status">
+            STATUS: SISTEM BELUM AKTIF
+        </div>
+
+        <div class="camera-container">
+
+            <!-- Kamera -->
+            <video id="webcam" playsinline muted></video>
+
+            <!-- Overlay Deteksi -->
+            <canvas id="overlay" width="640" height="480"></canvas>
+
+        </div>
+
+        <!-- Canvas Processor -->
+        <canvas id="processor" width="640" height="640" style="display:none;"></canvas>
+
+        <div class="footer">
+            <strong>Realtime AI Detection</strong><br>
+            Monitoring Keselamatan Kerja Berbasis Artificial Intelligence
+        </div>
+
     </div>
 
-    <!-- Kanvas tersembunyi yang digunakan sistem untuk menyesuaikan ukuran gambar bagi AI (Jangan dihapus!)[cite: 2] -->
-    <canvas id="processor" width="640" height="640" style="display:none;"></canvas>
-
-    <!-- Memanggil file logika AI kalian -->
+    <!-- File AI -->
     <script src="app.js"></script>
+
 </body>
 </html>
