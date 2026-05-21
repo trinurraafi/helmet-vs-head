@@ -7,11 +7,11 @@ const CONFIG = {
     
     // GANTI INI dengan nama kelas kalian. 
     // PERHATIAN: Urutannya HARUS SAMA PERSIS dengan urutan di Roboflow!
-    labels: ["Kelas_Satu", "Kelas_Dua"], 
+    labels: ["helmet", "head"], 
     
     // Batas keyakinan AI (0.45 = 45%). 
     // Jika AI terlalu sering salah tebak, naikkan angkanya (misal 0.60).
-    threshold: 0.45,
+    threshold: 0.60,
     
     // Batas untuk menghapus kotak deteksi yang menumpuk (Biarkan saja 0.4)
     iouThreshold: 0.4
