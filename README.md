@@ -61,9 +61,9 @@ Tahapan:
 
 ---
 
-## 📸 Preview
+## 📸 Preview/Cobain Nya Disini
 
-*(Tambahin screenshot di sini kalau ada biar makin keren 😎)*
+https://trinurraafi.github.io/helmet-vs-head/ 😎
 
 ---
 
