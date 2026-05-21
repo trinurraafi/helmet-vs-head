@@ -1,172 +1,325 @@
 // ======================================================================
-// 1. PENGATURAN PROYEK (KALIAN HANYA PERLU MENGUBAH BAGIAN INI)
+// 1. PENGATURAN PROYEK
 // ======================================================================
+
 const CONFIG = {
-    // Nama file model AI yang sudah kalian download dari Colab
-    modelPath: './best.onnx', 
-    
-    // GANTI INI dengan nama kelas kalian. 
-    // PERHATIAN: Urutannya HARUS SAMA PERSIS dengan urutan di Roboflow!
-    labels: ["head", "helmet"], 
-    
-    // Batas keyakinan AI (0.45 = 45%). 
-    // Jika AI terlalu sering salah tebak, naikkan angkanya (misal 0.60).
+
+    // Nama file model AI
+    modelPath: './best.onnx',
+
+    // Label class AI
+    labels: ["head", "helmet"],
+
+    // Threshold confidence
     threshold: 0.60,
-    
-    // Batas untuk menghapus kotak deteksi yang menumpuk (Biarkan saja 0.4)
+
+    // IoU Threshold
     iouThreshold: 0.4
 };
+
 
 // ======================================================================
 // AUDIO PERINGATAN
 // ======================================================================
 
+// Alarm online
 const warningSound = new Audio(
     "https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"
 );
 
+warningSound.preload = "auto";
 warningSound.volume = 1.0;
 
-// Cooldown agar suara tidak spam
+
+// Unlock audio browser
+document.addEventListener("click", () => {
+
+    warningSound.play()
+        .then(() => {
+
+            warningSound.pause();
+            warningSound.currentTime = 0;
+
+        })
+        .catch(() => { });
+
+}, { once: true });
+
+
+// Cooldown agar tidak spam
 let lastWarningTime = 0;
 const warningCooldown = 3000;
 
 
 // ======================================================================
-// 2. MESIN INTI AI (JANGAN MENGUBAH KODE DI BAWAH INI!)
+// 2. MESIN INTI AI
 // ======================================================================
 
-// Menangkap elemen-elemen dari halaman HTML agar bisa dikendalikan oleh Javascript[cite: 1]
+// Ambil elemen HTML
 const video = document.getElementById('webcam');
+
 const overlay = document.getElementById('overlay');
+
 const ctxOverlay = overlay.getContext('2d');
+
 const processor = document.getElementById('processor');
-const ctxProcessor = processor.getContext('2d', { willReadFrequently: true });
+
+const ctxProcessor = processor.getContext('2d', {
+    willReadFrequently: true
+});
+
 const status = document.getElementById('status');
+
 const initBtn = document.getElementById('btn-init');
 
-let session;
-const TARGET_SIZE = 640; // Ukuran gambar standar yang diminta oleh YOLO11n
 
-// Langkah 1: Memuat Model AI saat tombol ditekan[cite: 1]
+let session;
+
+const TARGET_SIZE = 640;
+
+
+// ======================================================================
+// LOAD MODEL
+// ======================================================================
+
 initBtn.addEventListener('click', async () => {
+
     initBtn.disabled = true;
+
     initBtn.innerText = "MEMUAT MODEL AI...";
+
     try {
-        ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
-        session = await ort.InferenceSession.create(CONFIG.modelPath, { 
-            executionProviders: ['webgl', 'wasm'] // Meminta browser menggunakan GPU/VGA jika tersedia
-        });
+
+        ort.env.wasm.wasmPaths =
+            'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
+
+        session = await ort.InferenceSession.create(
+            CONFIG.modelPath,
+            {
+                executionProviders: ['webgl', 'wasm']
+            }
+        );
+
         startCamera();
+
     } catch (e) {
-        status.innerText = "GAGAL: FILE MODEL TIDAK DITEMUKAN";
+
+        status.innerText =
+            "GAGAL: FILE MODEL TIDAK DITEMUKAN";
+
         console.error(e);
     }
 });
 
-// Langkah 2: Menyalakan Kamera Web[cite: 1]
+
+// ======================================================================
+// START CAMERA
+// ======================================================================
+
 async function startCamera() {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+            width: 640,
+            height: 480
+        },
+        audio: false
+    });
+
     video.srcObject = stream;
+
     video.onloadedmetadata = () => {
+
         video.play();
-        status.innerText = "SISTEM AKTIF: MENUNGGU OBJEK";
+
+        status.innerText =
+            "SISTEM AKTIF: MENUNGGU OBJEK";
+
         initBtn.style.display = "none";
+
         requestAnimationFrame(processFrame);
     };
 }
 
-// Langkah 3: Proses Deteksi Berulang (Looping)[cite: 1]
+
+// ======================================================================
+// PROCESS FRAME
+// ======================================================================
+
 async function processFrame() {
+
     if (!session) return;
 
-    // A. Mengambil satu gambar dari video kamera dan menyesuaikan ukurannya ke 640x640[cite: 1]
-    ctxProcessor.drawImage(video, 0, 0, TARGET_SIZE, TARGET_SIZE);
-    const imageData = ctxProcessor.getImageData(0, 0, TARGET_SIZE, TARGET_SIZE).data;
-    const float32Data = new Float32Array(3 * TARGET_SIZE * TARGET_SIZE);
+    // Resize image
+    ctxProcessor.drawImage(
+        video,
+        0,
+        0,
+        TARGET_SIZE,
+        TARGET_SIZE
+    );
 
-    // B. Mengubah format warna piksel agar bisa dibaca oleh matriks AI[cite: 1]
+    const imageData =
+        ctxProcessor.getImageData(
+            0,
+            0,
+            TARGET_SIZE,
+            TARGET_SIZE
+        ).data;
+
+    const float32Data =
+        new Float32Array(
+            3 * TARGET_SIZE * TARGET_SIZE
+        );
+
+    // Convert RGB
     for (let i = 0; i < TARGET_SIZE * TARGET_SIZE; i++) {
-        float32Data[i] = imageData[i * 4] / 255.0; // Warna Merah (R)
-        float32Data[i + TARGET_SIZE * TARGET_SIZE] = imageData[i * 4 + 1] / 255.0; // Warna Hijau (G)
-        float32Data[i + 2 * TARGET_SIZE * TARGET_SIZE] = imageData[i * 4 + 2] / 255.0; // Warna Biru (B)
+
+        float32Data[i] =
+            imageData[i * 4] / 255.0;
+
+        float32Data[i + TARGET_SIZE * TARGET_SIZE] =
+            imageData[i * 4 + 1] / 255.0;
+
+        float32Data[i + 2 * TARGET_SIZE * TARGET_SIZE] =
+            imageData[i * 4 + 2] / 255.0;
     }
 
-    // C. Mengirim gambar ke otak AI (Model ONNX)[cite: 1]
-    const inputTensor = new ort.Tensor('float32', float32Data, [1, 3, TARGET_SIZE, TARGET_SIZE]);
-    const results = await session.run({ [session.inputNames[0]]: inputTensor });
-    const output = results[session.outputNames[0]].data; 
-    
-    // D. Membaca hasil tebakan AI[cite: 1]
-    const numClasses = CONFIG.labels.length;
-    const elements = 8400; 
+    // Tensor
+    const inputTensor = new ort.Tensor(
+        'float32',
+        float32Data,
+        [1, 3, TARGET_SIZE, TARGET_SIZE]
+    );
+
+    // Run AI
+    const results = await session.run({
+        [session.inputNames[0]]: inputTensor
+    });
+
+    const output =
+        results[session.outputNames[0]].data;
+
+    // Detection
+    const numClasses =
+        CONFIG.labels.length;
+
+    const elements = 8400;
+
     let rawBoxes = [];
 
     for (let i = 0; i < elements; i++) {
+
         let maxScore = 0;
+
         let classId = -1;
-        
-        // Mencari nilai persentase tertinggi di antara semua tebakan kelas
+
+        // Cari score terbesar
         for (let c = 0; c < numClasses; c++) {
-            const score = output[i + (4 + c) * elements];
+
+            const score =
+                output[i + (4 + c) * elements];
+
             if (score > maxScore) {
+
                 maxScore = score;
+
                 classId = c;
             }
         }
 
-        // Jika tebakan AI melebihi batas threshold yang kalian atur
+        // Threshold
         if (maxScore > CONFIG.threshold) {
+
             let x = output[i];
+
             let y = output[i + elements];
+
             let w = output[i + 2 * elements];
+
             let h = output[i + 3 * elements];
-            
-            // Menyesuaikan ukuran kotak hasil deteksi[cite: 1]
-            if (w <= 1.5) { 
-                x *= TARGET_SIZE; 
-                y *= TARGET_SIZE; 
-                w *= TARGET_SIZE; 
-                h *= TARGET_SIZE; 
+
+            // Scale
+            if (w <= 1.5) {
+
+                x *= TARGET_SIZE;
+
+                y *= TARGET_SIZE;
+
+                w *= TARGET_SIZE;
+
+                h *= TARGET_SIZE;
             }
 
             rawBoxes.push({
+
                 x: x - w / 2,
+
                 y: y - h / 2,
+
                 w: w,
+
                 h: h,
+
                 score: maxScore,
+
                 classId: classId
             });
         }
     }
 
-    // E. Membersihkan kotak-kotak yang menumpuk pada objek yang sama[cite: 1]
-    const finalBoxes = nonMaxSuppression(rawBoxes, CONFIG.iouThreshold);
+    // NMS
+    const finalBoxes =
+        nonMaxSuppression(
+            rawBoxes,
+            CONFIG.iouThreshold
+        );
 
+    // Draw
     drawBoxes(finalBoxes);
 
     requestAnimationFrame(processFrame);
 }
 
+
 // ======================================================================
-// FUNGSI MATEMATIKA TAMBAHAN (Intersection over Union & NMS)
+// IOU
 // ======================================================================
 
 function calculateIoU(box1, box2) {
-    const xA = Math.max(box1.x, box2.x);
-    const yA = Math.max(box1.y, box2.y);
-    const xB = Math.min(box1.x + box1.w, box2.x + box2.w);
-    const yB = Math.min(box1.y + box1.h, box2.y + box2.h);
 
-    const intersectionArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
+    const xA = Math.max(box1.x, box2.x);
+
+    const yA = Math.max(box1.y, box2.y);
+
+    const xB = Math.min(
+        box1.x + box1.w,
+        box2.x + box2.w
+    );
+
+    const yB = Math.min(
+        box1.y + box1.h,
+        box2.y + box2.h
+    );
+
+    const intersectionArea =
+        Math.max(0, xB - xA) *
+        Math.max(0, yB - yA);
 
     return intersectionArea / (
+
         (box1.w * box1.h) +
+
         (box2.w * box2.h) -
+
         intersectionArea
     );
 }
+
+
+// ======================================================================
+// NMS
+// ======================================================================
 
 function nonMaxSuppression(boxes, iouThreshold) {
 
@@ -180,8 +333,8 @@ function nonMaxSuppression(boxes, iouThreshold) {
 
         result.push(current);
 
-        boxes = boxes.filter(
-            box => calculateIoU(current, box) < iouThreshold
+        boxes = boxes.filter(box =>
+            calculateIoU(current, box) < iouThreshold
         );
     }
 
@@ -190,68 +343,94 @@ function nonMaxSuppression(boxes, iouThreshold) {
 
 
 // ======================================================================
-// FUNGSI GAMBAR KOTAK DETEKSI
+// DRAW BOX
 // ======================================================================
 
 function drawBoxes(boxes) {
 
-    ctxOverlay.clearRect(0, 0, overlay.width, overlay.height);
+    ctxOverlay.clearRect(
+        0,
+        0,
+        overlay.width,
+        overlay.height
+    );
+
+    let foundNoHelmet = false;
 
     boxes.forEach(box => {
 
-        const scaleX = overlay.width / TARGET_SIZE;
-        const scaleY = overlay.height / TARGET_SIZE;
+        const scaleX =
+            overlay.width / TARGET_SIZE;
 
-        const label = CONFIG.labels[box.classId];
+        const scaleY =
+            overlay.height / TARGET_SIZE;
 
-        // =====================================================
-        // JIKA TIDAK PAKAI HELM
-        // =====================================================
+        const label =
+            CONFIG.labels[box.classId];
+
+
+        // =================================================
+        // TIDAK PAKAI HELM
+        // =================================================
 
         if (label === "head") {
 
+            foundNoHelmet = true;
+
             // Kotak merah
             ctxOverlay.strokeStyle = "#FF3B30";
+
             ctxOverlay.fillStyle = "#FF3B30";
 
-            // Update status
-            status.innerText = "⚠️ PERINGATAN: ADA PEKERJA TANPA HELM";
 
-            // Mainkan suara
+            // Alarm
             const now = Date.now();
 
-            if (now - lastWarningTime > warningCooldown) {
+            if (
+                now - lastWarningTime >
+                warningCooldown
+            ) {
 
-                // Alarm
-                warningSound.play();
+                // Bunyikan alarm
+                warningSound.currentTime = 0;
+
+                warningSound.play()
+                    .catch(err => {
+                        console.log(err);
+                    });
 
                 // Voice AI
-                const speech = new SpeechSynthesisUtterance(
-                    "Peringatan! Pekerja tidak menggunakan helm keselamatan."
-                );
+                const speech =
+                    new SpeechSynthesisUtterance(
+                        "Peringatan! Pekerja tidak menggunakan helm keselamatan."
+                    );
 
                 speech.lang = "id-ID";
+
                 speech.volume = 1;
+
                 speech.rate = 1;
 
-                window.speechSynthesis.speak(speech);
+                window.speechSynthesis.speak(
+                    speech
+                );
 
                 lastWarningTime = now;
             }
 
         }
 
-        // =====================================================
-        // JIKA PAKAI HELM
-        // =====================================================
+        // =================================================
+        // PAKAI HELM
+        // =================================================
 
         else {
 
             ctxOverlay.strokeStyle = "#34C759";
-            ctxOverlay.fillStyle = "#34C759";
 
-            status.innerText = "✅ SEMUA PEKERJA MEMAKAI HELM";
+            ctxOverlay.fillStyle = "#34C759";
         }
+
 
         // Gambar kotak
         ctxOverlay.lineWidth = 3;
@@ -263,8 +442,9 @@ function drawBoxes(boxes) {
             box.h * scaleY
         );
 
-        // Text label
-        ctxOverlay.font = "bold 16px Arial";
+        // Text
+        ctxOverlay.font =
+            "bold 16px Arial";
 
         ctxOverlay.fillText(
             `${label} ${(box.score * 100).toFixed(0)}%`,
@@ -272,4 +452,20 @@ function drawBoxes(boxes) {
             box.y * scaleY - 5
         );
     });
+
+
+    // =================================================
+    // STATUS
+    // =================================================
+
+    if (foundNoHelmet) {
+
+        status.innerText =
+            "⚠️ PERINGATAN: ADA PEKERJA TANPA HELM";
+
+    } else {
+
+        status.innerText =
+            "✅ SEMUA PEKERJA MEMAKAI HELM";
+    }
 }
