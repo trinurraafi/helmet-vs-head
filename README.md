@@ -61,7 +61,7 @@ Tahapan:
 
 ---
 
-## 📸 Preview/Cobain Nya Disini
+## 📸 Review / Cobain Nya Disini
 
 https://trinurraafi.github.io/helmet-vs-head/ 😎
 
