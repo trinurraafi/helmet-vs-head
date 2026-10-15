@@ -73,14 +73,6 @@ Project ini sudah **di-deploy di GitHub Pages** supaya bisa langsung diakses lew
 
 ---
 
-## 👨‍💻 Dibuat oleh
-
-- Tri Nur Raafi  
-- Ragga Hafidz Fianugra  
-- Ziddan Mulki Akbar  
-
----
-
 ## 🔥 Catatan
 
 Project ini masih bisa dikembangkan lagi biar makin akurat, misalnya:
